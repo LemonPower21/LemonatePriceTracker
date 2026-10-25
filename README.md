@@ -2,7 +2,7 @@
 
 **LEMONATE** is a custom function for Google Sheets written in Google Apps Script. It allows you to automatically retrieve the **reference price** (or latest available market price) of a bond using its **ISIN code**.
 
-The script first attempts to fetch data via the **Yahoo Finance API**. If the bond is not found or data is unavailable, it falls back to web scraping from **Borsa Italiana (EuroTLX)**. To ensure high performance and avoid hitting Google Apps Script quota limits, it features built-in 10-minute caching.
+The script first attempts to fetch data via the **Yahoo Finance API**. If the bond is not found or data is unavailable, it falls back to web scraping from **Borsa Italiana**. To ensure high performance and avoid hitting Google Apps Script quota limits, it features built-in 10-minute caching.
 
 ## 🌟 Key Features
 
