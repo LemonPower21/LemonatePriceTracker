@@ -1,88 +1,172 @@
-# 🍋 LEMONATE –  Price Tracker for Google Sheets (EVEN FOR BONDS)
+# LEMONATE
 
-**LEMONATE** is a custom function for Google Sheets written in Google Apps Script. It allows you to automatically retrieve the **reference price** (or latest available market price) of a bond using its **ISIN code**.
-
-The script first attempts to fetch data via the **Yahoo Finance API**. If the bond is not found or data is unavailable, it falls back to web scraping from **Borsa Italiana**. To ensure high performance and avoid hitting Google Apps Script quota limits, it features built-in 10-minute caching.
-
-## 🌟 Key Features
-
-* 🔎 **Multi-Source Lookup**: Automatically queries Yahoo Finance first, then falls back to Borsa Italiana.
-
-* ⚡ **Optimized Performance**: Leverages `CacheService` to store prices for 10 minutes (600 seconds), significantly speeding up spreadsheet load times and preventing HTTP request throttling.
-
-* 🛡️ **Fallback Management**: If the ISIN code is not found or no price is available, it gracefully returns a user-defined fallback value (e.g., `100` or a reference cell).
-
-* 🇮🇹 **Italian Number Formatting**: Automatically converts European/Italian formatted number strings (e.g., `98,50` or `1.002,15`) into valid float numbers usable in formulas.
-
-## 🛠️ Installation
-
-1. Open your target spreadsheet in **Google Sheets**.
-
-2. In the top menu, navigate to **Extensions** > **Apps Script**.
-
-3. Delete any default code in the editor and paste the contents of `Lemonate.gs`.
-
-4. Click the **Save** icon (💾) or press `Ctrl + S` (`Cmd + S` on Mac).
-
-5. Return to your spreadsheet—the `=LEMONATE()` function is now ready to use!
-
-## 🚀 Usage Guide
-
-The function syntax is as follows:
-
-```
-=LEMONATE(isin, [fallbackValue])
-```
-
-### Parameters
-
-| Parameter | Type | Required | Description |
-| ----- | ----- | ----- | ----- |
-| `isin` | `String` | **Yes** | The bond's ISIN code (e.g., `"IT0005436693"` or a cell reference like `A2`). |
-| `fallbackValue` | `Number`/`String` | Optional | The value to return if the price cannot be retrieved. *(Default: `100`)* |
-
-### Usage Examples
-
-#### 1. Fetch price using a cell reference
-
-If cell `A2` contains the ISIN code:
-
-```
-=LEMONATE(A2)
-```
-
-#### 2. Provide a custom fallback value
-
-If the ISIN in `A2` is not found, the formula will return `99.5`:
-
-```
-=LEMONATE(A2, 99.5)
-```
-
-#### 3. Use another cell as fallback
-
-If the ISIN is not found, return the cost/purchase price located in cell `N2`:
+Live price lookup **by ISIN** for Google Sheets. One custom function that works for bonds (BTP, corporate, Eurobonds), stocks, ETFs/ETCs, funds and certificates.
 
 ```
 =LEMONATE(A2, N2)
 ```
 
-## 🔄 How Caching Works
+Returns the price of the instrument whose ISIN is in `A2`, or the value of `N2` if no price can be found.
 
-1. When `=LEMONATE("IT0005436693")` is evaluated, the script checks the document cache (`CacheService`).
+---
 
-2. **Cache Hit**: If the price was retrieved within the last 10 minutes, it is returned immediately without external HTTP requests.
+## Table of contents
 
-3. **Cache Miss**:
+1. [Installation](#installation)
+2. [Functions](#functions)
+3. [How the price is found](#how-the-price-is-found)
+4. [Caching](#caching)
+5. [Status and error messages](#status-and-error-messages)
+6. [Troubleshooting](#troubleshooting)
+7. [Limits and notes](#limits-and-notes)
 
-   * Queries the **Yahoo Finance API**.
+---
 
-   * If missing, scrapes the security page on **Borsa Italiana**.
+## Installation
 
-   * If a price is found, stores it in cache for **10 minutes** (600 seconds) and outputs the price.
+1. Open your Google Sheet.
+2. Go to **Extensions → Apps Script**.
+3. Delete the existing code and paste the full content of `LEMONATE.gs`.
+4. Click **Save**.
+5. Select the `testLemonate` function in the toolbar and click **Run**. Accept the permission prompt (needed to make external web requests).
+6. Open **Executions** (or **View → Logs**) to read the result for the sample ISINs.
+7. Go back to the sheet and use the formulas below.
 
-   * If all sources fail, returns the specified `fallbackValue`.
+> If your spreadsheet locale uses `;` as argument separator (for example Italian), write `=LEMONATE(A2; N2)`.
 
-## 📜 License
+---
 
-This project is licensed under the GNU GPL 3.0 License - free to use, modify, and distribute.
+## Functions
+
+### `LEMONATE(isin, fallbackValue, source)`
+
+| Argument | Required | Description |
+|---|---|---|
+| `isin` | yes | ISIN code of the instrument (a single cell, e.g. `A2`). Spaces and hyphens are ignored, lower case is accepted. |
+| `fallbackValue` | no | Value or cell returned when no price is found (e.g. `N2`). Defaults to `100`. |
+| `source` | no | `"AUTO"` (default), `"BORSA"` (Borsa Italiana only) or `"YAHOO"` (Yahoo Finance only). |
+
+Returns the price as a number, or the fallback value.
+
+```
+=LEMONATE(A2)                 price, or 100 if not found
+=LEMONATE(A2, N2)             price, or the content of N2 if not found
+=LEMONATE(A2, N2, "BORSA")    only Borsa Italiana
+=LEMONATE(A2, N2, "YAHOO")    only Yahoo Finance
+```
+
+### `LEMONATE_INFO(isin, includeHeader, source)`
+
+Diagnostic version: shows where the price comes from, or why none was found.
+
+```
+=LEMONATE_INFO(A2, TRUE)
+```
+
+Output columns:
+
+| ISIN | Price | Currency | Source | Price type | Price date | Name | Status |
+|---|---|---|---|---|---|---|---|
+
+* `Price type` is `Reference price`, `Last trade`, `Official price`, `Last price` or `Previous close`.
+* `Status` is `OK`, `OK (cached)` or the reason why no price was found.
+* `includeHeader` is optional: `TRUE` adds the header row.
+
+### Helper functions (run from the Apps Script editor)
+
+| Function | What it does |
+|---|---|
+| `testLemonate()` | Looks up a few sample ISINs (BTP, Eurobond, stock, ETF and one invalid ISIN) and writes the outcome to the log. Edit the `sample` list to test your own ISINs. |
+| `clearLemonateCache()` | Invalidates every cached price and remembered source. Then force the sheet to recalculate (re-enter a formula or reopen the file). |
+
+---
+
+## How the price is found
+
+1. **ISIN validation.** Format (2 letters + 9 letters/digits + 1 digit) and ISO 6166 check digit. An invalid ISIN never triggers a web request.
+2. **Source order** (`AUTO` mode):
+   * ISINs starting with `IT` or `XS` (Italian instruments and Eurobonds): **Borsa Italiana first**, then Yahoo Finance.
+   * Every other ISIN: **Yahoo Finance first**, then Borsa Italiana.
+3. **Borsa Italiana.** The instrument pages are requested in parallel, bonds first and everything else only if no bond page matches:
+
+   | Group | Pages |
+   |---|---|
+   | 1 (bonds) | MOT government bonds, MOT bonds in EUR, EuroMOT Eurobonds, EuroTLX |
+   | 2 (other) | Euronext Milan stocks, ETFplus ETFs/ETCs, SeDeX certificates/warrants, ExtraMOT |
+
+   A page is accepted only if it contains the requested ISIN **and** a price label followed by a number. The price is read in this order:
+
+   1. `Prezzo di riferimento` (reference price)
+   2. `Ultimo contratto` / `Ultimo prezzo` (last trade)
+   3. `Prezzo ufficiale` (official price)
+
+   Bond prices are quoted as a **percentage of par value** (e.g. `101.55`). The currency is read from the page when available, and the reference date is returned for the reference price.
+4. **Yahoo Finance.** The ISIN is resolved to a ticker (indices, currencies, crypto, futures and options are ignored, at most 3 candidates are tried), then the last market price is read; if missing, the previous close. Prices are in the **listing currency** of the ticker (for example `GBp` means pence). Prices are **not** converted.
+5. The source that worked is remembered, so later refreshes need a single request.
+
+---
+
+## Caching
+
+| What | Duration |
+|---|---|
+| Successful price | 10 minutes |
+| Failed lookup | 2 minutes (avoids hammering the sources) |
+| Remembered source (page or ticker) per ISIN | 6 hours (maximum allowed by Apps Script) |
+
+Google Sheets only re-runs a custom function when the sheet recalculates (file opened, a precedent cell changed, formula re-entered). It does **not** refresh on a timer.
+
+---
+
+## Status and error messages
+
+`LEMONATE` never breaks your formulas: on any problem it returns the fallback value and writes the reason to the log. `LEMONATE_INFO` shows the same reason in the `Status` column.
+
+| Message | Meaning |
+|---|---|
+| `No ISIN provided` | The ISIN cell is empty. |
+| `Invalid ISIN "…": it must be exactly 12 characters long` | Wrong length. |
+| `Invalid ISIN "…": expected 2 letters, 9 letters/digits and 1 check digit` | Wrong format. |
+| `Invalid ISIN "…": the check digit does not match (possible typo)` | The ISIN has a typo. |
+| `Borsa Italiana: no price found for this ISIN` | None of the Borsa Italiana pages contains a price for it. If present, `(unexpected HTTP status …)` lists non-404 errors such as 403 or 429. |
+| `Yahoo Finance: no instrument found for this ISIN` | Yahoo search returned nothing for the ISIN. |
+| `Yahoo Finance: rate limit reached (HTTP 429), try again in a few minutes` | Yahoo is throttling the requests (shared Google IPs). Yahoo is skipped for this lookup. |
+| `Yahoo Finance search: unexpected HTTP status …` / `Yahoo Finance …: no market data` / `no valid price` | Yahoo answered, but without a usable price. |
+| `Network error: …` | The request could not be completed. |
+| `Time budget exceeded (custom functions are limited to 30 seconds)` | The lookup was stopped to stay inside the Google limit. |
+
+Two cases show a real error in the cell (`#ERROR!`) because they are usage mistakes:
+
+* `LEMONATE expects a single ISIN cell, not a range. Enter the formula in one cell and fill it down.`
+* `Invalid source "…". Use "AUTO", "BORSA" or "YAHOO".`
+
+---
+
+## Troubleshooting
+
+* **I always get the fallback value.** Use `=LEMONATE_INFO(A2, TRUE)` and read the `Status` column.
+* **The price does not change.** The result is cached for 10 minutes, and Sheets does not recalculate on its own. Run `clearLemonateCache()` and re-enter the formula.
+* **The price is not the one I expected.** Check `Source` and `Price type` in `LEMONATE_INFO`. Use the third argument (`"BORSA"` or `"YAHOO"`) to force a source.
+* **Yahoo returns a price in the wrong unit.** Yahoo prices are in the listing currency (`GBp` = pence, not pounds). Check the `Currency` column.
+* **`Service invoked too many times` or quota errors.** Apps Script limits daily web requests. Keep the cache enabled, avoid hundreds of unique ISINs recalculating at once, and wait for the quota to reset.
+* **A type of instrument is not found.** Open its Borsa Italiana page in your browser, copy the address and share it: the page pattern can be added to `LEMONATE_BORSA_PAGES` in the script.
+
+---
+
+## Limits and notes
+
+* Prices come from public web pages and are provided **as is**, with no guarantee of accuracy or timeliness. They are not investment advice.
+* The Borsa Italiana page layout can change at any time; if it does, parsing may stop working until the script is updated.
+* Bonds listed only on foreign venues and not on Borsa Italiana are usually not available on Yahoo Finance either, so they may not be found.
+* Each custom function call is limited to **30 seconds** by Google; the script stops trying new sources after about 22 seconds.
+* The ETF and ExtraMOT page addresses could not be verified when the script was written. If a page does not exist, the script simply moves on to the next one.
+* The script was tested against simulated web responses; run `testLemonate()` in your own sheet to confirm live behaviour.
+
+---
+
+## Files
+
+| File | Description |
+|---|---|
+| `LEMONATE.gs` | The Apps Script code (paste it into the script editor). |
+| `README.md` | This document. |
